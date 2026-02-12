@@ -7,7 +7,7 @@ const ALPHA_VANTAGE_KEY = 'G3MRG40E7MG8QEOB';
 
 export default function MacroPage() {
   // 1. Define State to hold the data
-  const [data, setData] = useState({
+  const [data, setData] = useState<any>({
     gdp: { data: [] },
     unemployment: { data: [] },
     cpi: { data: [] },
