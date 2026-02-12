@@ -100,3 +100,28 @@ def get_market_data(symbol: str):
     except Exception as e:
         print(f"Market fetch error for {symbol}: {e}")
         return {"price": "---", "change": "0.00%", "pos": True}
+    
+
+# ... existing code ...
+
+@app.get("/api/news")
+def get_news():
+    try:
+        # Fetch news for S&P 500 (SPY) as a proxy for general market news
+        ticker = yf.Ticker("SPY")
+        raw_news = ticker.news
+        
+        # Clean up the data to make it easy for the frontend
+        clean_news = []
+        for item in raw_news:
+            clean_news.append({
+                "title": item.get("title"),
+                "publisher": item.get("publisher"),
+                "link": item.get("link"),
+                "time": item.get("providerPublishTime")
+            })
+            
+        return {"data": clean_news[:10]} # Return top 10 stories
+    except Exception as e:
+        print(f"News fetch error: {e}")
+        return {"data": []}
