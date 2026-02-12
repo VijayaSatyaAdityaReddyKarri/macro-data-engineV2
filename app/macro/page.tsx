@@ -1,111 +1,106 @@
+'use client'; // 👈 This tells Next.js to run this in the browser
+
+import React, { useEffect, useState } from 'react';
 import MacroLineChart from '@/components/MacroLineChart';
-
-
-export const dynamic = 'force-dynamic';
 
 const ALPHA_VANTAGE_KEY = 'G3MRG40E7MG8QEOB';
 
+export default function MacroPage() {
+  // 1. Define State to hold the data
+  const [data, setData] = useState({
+    gdp: { data: [] },
+    unemployment: { data: [] },
+    cpi: { data: [] },
+    fedFunds: { data: [] },
+    recessions: { data: [] },
+    sp500: { price: "---", change: "0.00%", pos: true },
+    dxy: { price: "---", change: "0.00%", pos: true },
+    yields: { price: "---", change: "0.00%", pos: true }
+  });
 
-async function fetchMarketPrice(symbol: string) {
-  try {
-    const res = await fetch(
-      `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`,
-      { next: { revalidate: 60 } } 
-    );
-    const data = await res.json();
-    const quote = data["Global Quote"];
-    
-    if (!quote || !quote["05. price"]) {
-      return { price: "---", change: "0.00%", pos: true };
+  // 2. Fetch Data when the page loads (in the Browser)
+  useEffect(() => {
+    async function loadAllData() {
+      console.log("⚡ Client-side fetch starting...");
+
+      // Helper to fetch series from YOUR API
+      const fetchSeries = async (slug: string) => {
+        try {
+          // We use a relative path '/api/...' so it works automatically
+          const res = await fetch(`/api/series/${slug}`);
+          const json = await res.json();
+          if (!json.data) return { data: [] };
+          
+          // Clean data
+          const cleanData = json.data.map((item: any) => ({
+            time: item.date,
+            value: item.value
+          }));
+          return { data: cleanData };
+        } catch (e) {
+          console.error(`Failed to fetch ${slug}`, e);
+          return { data: [] };
+        }
+      };
+
+      // Helper to fetch Market Data (Alpha Vantage)
+      const fetchMarket = async (symbol: string) => {
+        try {
+          const res = await fetch(
+            `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`
+          );
+          const json = await res.json();
+          const quote = json["Global Quote"];
+          if (!quote) return { price: "---", change: "0.00%", pos: true };
+
+          const price = parseFloat(quote["05. price"]);
+          const changePercent = quote["10. change percent"];
+          return {
+            price: price.toLocaleString(undefined, { minimumFractionDigits: 2 }),
+            change: changePercent,
+            pos: !changePercent.startsWith('-')
+          };
+        } catch (e) {
+          return { price: "ERR", change: "0.00%", pos: true };
+        }
+      };
+
+      // Run all fetches at once
+      const [gdp, ur, cpi, fed, rec, spy, uup, ief] = await Promise.all([
+        fetchSeries('real_gdp'),
+        fetchSeries('unemployment_rate'),
+        fetchSeries('cpi_headline'),
+        fetchSeries('fed_funds'),
+        fetchSeries('recessions'),
+        fetchMarket('SPY'),
+        fetchMarket('UUP'),
+        fetchMarket('IEF')
+      ]);
+
+      // Save to state
+      setData({
+        gdp,
+        unemployment: ur,
+        cpi,
+        fedFunds: fed,
+        recessions: rec,
+        sp500: spy,
+        dxy: uup,
+        yields: ief
+      });
     }
 
-    const price = parseFloat(quote["05. price"]);
-    const changePercent = quote["10. change percent"];
-    
-    return {
-      price: price.toLocaleString(undefined, { minimumFractionDigits: 2 }),
-      change: changePercent,
-      pos: !changePercent.startsWith('-')
-    };
-  } catch (error) {
-    console.error(`Market fetch failed for ${symbol}:`, error);
-    return { price: "ERR", change: "0.00%", pos: true };
-  }
-}
+    loadAllData();
+  }, []);
 
-
-async function fetchSeries(slug: string) {
-  try {
-    // 👇 FIXED: Removed "/macro" from the end. Now points to the root.
-    const baseUrl = 'https://macro-data-engine-591x.vercel.app'; 
-    
-    // Log the URL so we can see it in Vercel Logs if it fails
-    const targetUrl = `${baseUrl}/api/series/${slug}`;
-    console.log(`🚀 Fetching: ${targetUrl}`);
-
-    const res = await fetch(targetUrl, { 
-      cache: 'no-store',
-      headers: {
-        // 👇 Helps Vercel trust the request
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    });
-
-    if (!res.ok) {
-      console.error(`❌ Fetch Status Error: ${res.status} for ${slug}`);
-      return { data: [] };
-    }
-
-    const json = await res.json();
-
-    if (!json || !json.data || !Array.isArray(json.data)) {
-      console.error(`❌ Invalid JSON for ${slug}`, json);
-      return { data: [] };
-    }
-
-    // Clean data for the chart
-    const cleanData = json.data.map((item: any) => ({
-      time: item.date,
-      value: item.value
-    }));
-
-    return { ...json, data: cleanData };
-
-  } catch (error) {
-    console.error(`❌ CRASH fetching ${slug}:`, error);
-    return { data: [] };
-  }
-}
-
-export default async function MacroPage() {
-
-  const [
-    gdp, 
-    unemployment, 
-    cpi, 
-    fedFunds, 
-    recessions,
-    sp500,
-    dxy,
-    yields
-  ] = await Promise.all([
-    fetchSeries('real_gdp'),
-    fetchSeries('unemployment_rate'),
-    fetchSeries('cpi_headline'),
-    fetchSeries('fed_funds'),
-    fetchSeries('recessions'),
-    fetchMarketPrice('SPY'),
-    fetchMarketPrice('UUP'),
-    fetchMarketPrice('IEF')
-  ]);
-
-  const latestGDPValue = gdp.data.length > 0 ? gdp.data[gdp.data.length - 1].value : null;
-  const latestUnemploymentValue = unemployment.data.length > 0 ? unemployment.data[unemployment.data.length - 1].value : null;
+  // Calculate latest values for the side panel
+  const latestGDPValue = data.gdp.data.length > 0 ? data.gdp.data[data.gdp.data.length - 1].value : null;
+  const latestUnemploymentValue = data.unemployment.data.length > 0 ? data.unemployment.data[data.unemployment.data.length - 1].value : null;
 
   return (
     <main style={{ maxWidth: '1450px', margin: '0 auto', padding: '20px', backgroundColor: 'transparent', minHeight: '100vh', color: 'white', fontFamily: 'sans-serif' }}>
       
-      {/* HEADER: Updated*/}
+      {/* HEADER */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid #1b2226', paddingBottom: '15px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: 900, letterSpacing: '-1.5px', margin: 0, color: '#fff' }}>SKXY TERMINAL</h1>
@@ -124,9 +119,9 @@ export default async function MacroPage() {
           <div style={{ fontSize: '12px', fontWeight: 700, opacity: 0.5, marginBottom: '20px', letterSpacing: '1px' }}>WATCHLIST</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
-            <WatchlistItem label="S&P 500 (SPY)" value={sp500.price} change={sp500.change} isPositive={sp500.pos} />
-            <WatchlistItem label="US 10Y Yield (IEF)" value={yields.price} change={yields.change} isPositive={yields.pos} />
-            <WatchlistItem label="DXY Index (UUP)" value={dxy.price} change={dxy.change} isPositive={dxy.pos} />
+            <WatchlistItem label="S&P 500 (SPY)" value={data.sp500.price} change={data.sp500.change} isPositive={data.sp500.pos} />
+            <WatchlistItem label="US 10Y Yield (IEF)" value={data.yields.price} change={data.yields.change} isPositive={data.yields.pos} />
+            <WatchlistItem label="DXY Index (UUP)" value={data.dxy.price} change={data.dxy.change} isPositive={data.dxy.pos} />
             
             <div style={{ height: '1px', background: '#1b2226', margin: '5px 0' }} />
             
@@ -154,10 +149,10 @@ export default async function MacroPage() {
               title="Monetary Policy & Inflation" 
               subtitle="CPI Headline Index vs. Effective Federal Funds Rate" 
               series={[
-                { id: 'cpi', name: 'CPI Index', data: cpi.data },
-                { id: 'fed', name: 'Fed Funds', data: fedFunds.data }
+                { id: 'cpi', name: 'CPI Index', data: data.cpi.data },
+                { id: 'fed', name: 'Fed Funds', data: data.fedFunds.data }
               ]} 
-              recessions={recessions.data}
+              recessions={data.recessions.data}
             />
           </div>
 
@@ -166,8 +161,8 @@ export default async function MacroPage() {
             <MacroLineChart 
               title="Economic Growth" 
               subtitle="Real GDP (Billions)" 
-              series={[{ id: 'gdp', name: 'Real GDP', data: gdp.data }]} 
-              recessions={recessions.data}
+              series={[{ id: 'gdp', name: 'Real GDP', data: data.gdp.data }]} 
+              recessions={data.recessions.data}
             />
           </div>
 
@@ -175,8 +170,8 @@ export default async function MacroPage() {
             <MacroLineChart 
               title="Labor Market" 
               subtitle="Unemployment Rate (%)" 
-              series={[{ id: 'ur', name: 'Unemployment', data: unemployment.data, unit: '%' }]} 
-              recessions={recessions.data}
+              series={[{ id: 'ur', name: 'Unemployment', data: data.unemployment.data, unit: '%' }]} 
+              recessions={data.recessions.data}
             />
           </div>
         </section>
