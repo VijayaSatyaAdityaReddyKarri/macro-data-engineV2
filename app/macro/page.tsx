@@ -36,7 +36,9 @@ async function fetchMarketPrice(symbol: string) {
 
 async function fetchSeries(slug: string) {
   try {
-    const res = await fetch(`https://macro-api-l59k.onrender.com/series/${slug}`, { 
+    const baseUrl = 'https://macro-data-engine-591x.vercel.app/macro';
+    
+    const res = await fetch(`${baseUrl}/api/series/${slug}`, { 
       cache: 'no-store' 
     });
 
