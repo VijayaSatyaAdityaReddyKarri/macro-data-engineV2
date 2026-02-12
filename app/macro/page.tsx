@@ -36,25 +36,43 @@ async function fetchMarketPrice(symbol: string) {
 
 async function fetchSeries(slug: string) {
   try {
-    const baseUrl = 'https://macro-data-engine-591x.vercel.app/macro';
+    // 👇 FIXED: Removed "/macro" from the end. Now points to the root.
+    const baseUrl = 'https://macro-data-engine-591x.vercel.app'; 
     
-    const res = await fetch(`${baseUrl}/api/series/${slug}`, { 
-      cache: 'no-store' 
+    // Log the URL so we can see it in Vercel Logs if it fails
+    const targetUrl = `${baseUrl}/api/series/${slug}`;
+    console.log(`🚀 Fetching: ${targetUrl}`);
+
+    const res = await fetch(targetUrl, { 
+      cache: 'no-store',
+      headers: {
+        // 👇 Helps Vercel trust the request
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
     });
 
-    if (!res.ok) return { data: [] };
+    if (!res.ok) {
+      console.error(`❌ Fetch Status Error: ${res.status} for ${slug}`);
+      return { data: [] };
+    }
+
     const json = await res.json();
 
-    if (!json || !json.data || !Array.isArray(json.data)) return { data: [] };
+    if (!json || !json.data || !Array.isArray(json.data)) {
+      console.error(`❌ Invalid JSON for ${slug}`, json);
+      return { data: [] };
+    }
 
+    // Clean data for the chart
     const cleanData = json.data.map((item: any) => ({
       time: item.date,
       value: item.value
     }));
 
     return { ...json, data: cleanData };
+
   } catch (error) {
-    console.error(`Macro fetch failed for ${slug}:`, error);
+    console.error(`❌ CRASH fetching ${slug}:`, error);
     return { data: [] };
   }
 }
