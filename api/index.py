@@ -21,9 +21,18 @@ DATABASE_URL = os.getenv("POSTGRES_URL")
 if not DATABASE_URL:
     DATABASE_URL = "postgresql://postgres:Qwertyuiop12$$@localhost:5432/macro_db"
 
-# 3. Fix the "postgres://" bug for Python
+# 3. Fix the "postgres://" bug AND force SSL
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# FORCE SSL CONNECTION (Required for Vercel/Neon)
+if "?" not in DATABASE_URL:
+    DATABASE_URL += "?sslmode=require"
+else:
+    if "sslmode" not in DATABASE_URL:
+        DATABASE_URL += "&sslmode=require"
+
+print(f"Connecting to DB: {DATABASE_URL.split('@')[1]}") # Log the host for debugging
 
 engine = create_engine(DATABASE_URL)
 
