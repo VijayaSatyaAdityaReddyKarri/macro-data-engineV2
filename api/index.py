@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import create_engine, text
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
+import yfinance as yf
 
 app = FastAPI()
 
@@ -71,3 +72,31 @@ def get_series_data(slug: str):
         }
     except Exception as e:
         return {"error": str(e)}
+    
+
+    # ... existing code ...
+
+@app.get("/api/market/{symbol}")
+def get_market_data(symbol: str):
+    try:
+        # Fetch data from Yahoo Finance
+        ticker = yf.Ticker(symbol)
+        
+        # Get latest price and previous close
+        # 'fast_info' is much faster than downloading history
+        price = ticker.fast_info.last_price
+        prev_close = ticker.fast_info.previous_close
+        
+        if price is None or prev_close is None:
+            return {"price": "---", "change": "0.00%", "pos": True}
+
+        change_percent = ((price - prev_close) / prev_close) * 100
+        
+        return {
+            "price": f"{price:,.2f}",
+            "change": f"{change_percent:+.2f}%",
+            "pos": change_percent >= 0
+        }
+    except Exception as e:
+        print(f"Market fetch error for {symbol}: {e}")
+        return {"price": "---", "change": "0.00%", "pos": True}

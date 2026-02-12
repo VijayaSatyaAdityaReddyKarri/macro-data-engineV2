@@ -44,23 +44,18 @@ export default function MacroPage() {
       };
 
       // Helper to fetch Market Data (Alpha Vantage)
+// Helper to fetch Market Data (Now using YOUR Backend)
       const fetchMarket = async (symbol: string) => {
         try {
-          const res = await fetch(
-            `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`
-          );
+          // Call your own API endpoint (No rate limits!)
+          const res = await fetch(`/api/market/${symbol}`);
+          
+          if (!res.ok) return { price: "---", change: "0.00%", pos: true };
+          
           const json = await res.json();
-          const quote = json["Global Quote"];
-          if (!quote) return { price: "---", change: "0.00%", pos: true };
-
-          const price = parseFloat(quote["05. price"]);
-          const changePercent = quote["10. change percent"];
-          return {
-            price: price.toLocaleString(undefined, { minimumFractionDigits: 2 }),
-            change: changePercent,
-            pos: !changePercent.startsWith('-')
-          };
+          return json;
         } catch (e) {
+          console.error(`Market fetch failed for ${symbol}`, e);
           return { price: "ERR", change: "0.00%", pos: true };
         }
       };
