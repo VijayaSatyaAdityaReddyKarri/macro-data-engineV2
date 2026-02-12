@@ -6,7 +6,6 @@ import pandas as pd
 
 app = FastAPI()
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -14,34 +13,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+# --- DATABASE CONNECTION SETUP ---
 DATABASE_URL = os.getenv("POSTGRES_URL")
 
-# 2. If no Vercel password found (e.g. running locally), use localhost
+# Fallback for local testing
 if not DATABASE_URL:
     DATABASE_URL = "postgresql://postgres:Qwertyuiop12$$@localhost:5432/macro_db"
 
-# 3. Fix the "postgres://" bug AND force SSL
+# Fix 1: Handle "postgres://" for Python
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# FORCE SSL CONNECTION (Required for Vercel/Neon)
+# Fix 2: FORCE SSL (Required for Vercel/Neon)
 if "?" not in DATABASE_URL:
     DATABASE_URL += "?sslmode=require"
 else:
     if "sslmode" not in DATABASE_URL:
         DATABASE_URL += "&sslmode=require"
 
-print(f"Connecting to DB: {DATABASE_URL.split('@')[1]}") # Log the host for debugging
-
 engine = create_engine(DATABASE_URL)
 
-@app.get("/")
+# --- ROUTES (Updated with /api prefix) ---
+
+@app.get("/api")
 def read_root():
     return {"status": "online", "message": "Macro Data API is connected!"}
 
-
-@app.get("/series")
+@app.get("/api/series")
 def get_series_list():
     try:
         with engine.connect() as conn:
@@ -52,16 +50,16 @@ def get_series_list():
     except Exception as e:
         return {"error": str(e)}
 
-
-@app.get("/series/{slug}")
+@app.get("/api/series/{slug}")
 def get_series_data(slug: str):
     try:
         query = text("SELECT date, value FROM observations WHERE series_slug = :slug ORDER BY date ASC")
         
-        
         df = pd.read_sql(query, engine, params={"slug": slug})
         
         if df.empty:
+            # Note: This is your CUSTOM error message. 
+            # If you see this, the API works but the DB is empty.
             raise HTTPException(status_code=404, detail="Series not found")
 
         df['date'] = df['date'].astype(str)
