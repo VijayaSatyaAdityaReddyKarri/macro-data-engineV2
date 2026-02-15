@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, text
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import yfinance as yf
+import datetime
 
 app = FastAPI()
 
@@ -111,17 +112,44 @@ def get_news():
         ticker = yf.Ticker("SPY")
         raw_news = ticker.news
         
-        # Clean up the data to make it easy for the frontend
         clean_news = []
         for item in raw_news:
-            clean_news.append({
-                "title": item.get("title"),
-                "publisher": item.get("publisher"),
-                "link": item.get("link"),
-                "time": item.get("providerPublishTime")
-            })
+            # Yahoo's new format wraps everything in a "content" dictionary
+            # If "content" doesn't exist, it falls back to the old "item" format
+            news_data = item.get("content", item)
+            
+            title = news_data.get("title")
+            
+            # Extract Publisher (New format uses a nested dictionary for provider)
+            provider = news_data.get("provider", {})
+            publisher = provider.get("displayName") if isinstance(provider, dict) else news_data.get("publisher", "Market News")
+            
+            # Extract Link (New format uses canonicalUrl)
+            url_dict = news_data.get("canonicalUrl", {})
+            link = url_dict.get("url", news_data.get("link"))
+            
+            # Extract Time (New format uses pubDate string, Old uses providerPublishTime timestamp)
+            time_val = news_data.get("pubDate", news_data.get("providerPublishTime"))
+            
+            # If Yahoo sends a string date, convert it to a UNIX timestamp for the frontend
+            if isinstance(time_val, str):
+                try:
+                    dt = datetime.datetime.fromisoformat(time_val.replace('Z', '+00:00'))
+                    time_val = int(dt.timestamp())
+                except:
+                    pass # Keep as is if it fails
+            
+            # Only add to the list if we successfully found a title and link
+            if title and link:
+                clean_news.append({
+                    "title": title,
+                    "publisher": publisher,
+                    "link": link,
+                    "time": time_val
+                })
             
         return {"data": clean_news[:10]} # Return top 10 stories
+        
     except Exception as e:
         print(f"News fetch error: {e}")
         return {"data": []}
