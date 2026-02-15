@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import MacroLineChart from '@/components/MacroLineChart';
 
 export default function MacroPage() {
-  // 1. Define State
+  // 1. Define State (Added BTC and Gold)
   const [data, setData] = useState<any>({
     gdp: { data: [] },
     unemployment: { data: [] },
@@ -14,7 +14,9 @@ export default function MacroPage() {
     sp500: { price: "---", change: "0.00%", pos: true },
     dxy: { price: "---", change: "0.00%", pos: true },
     yields: { price: "---", change: "0.00%", pos: true },
-    news: [] // New State for News
+    btc: { price: "---", change: "0.00%", pos: true },   // New
+    gold: { price: "---", change: "0.00%", pos: true },  // New
+    news: []
   });
 
   // 2. Fetch Data
@@ -48,7 +50,6 @@ export default function MacroPage() {
         }
       };
 
-      // New Function to Fetch News
       const fetchNews = async () => {
         try {
           const res = await fetch(`/api/news`);
@@ -60,8 +61,8 @@ export default function MacroPage() {
         }
       };
 
-      // Run all fetches
-      const [gdp, ur, cpi, fed, rec, spy, uup, ief, newsData] = await Promise.all([
+      // Run all fetches concurrently (Added BTC-USD and GC=F)
+      const [gdp, ur, cpi, fed, rec, spy, uup, ief, btcData, goldData, newsData] = await Promise.all([
         fetchSeries('real_gdp'),
         fetchSeries('unemployment_rate'),
         fetchSeries('cpi_headline'),
@@ -70,6 +71,8 @@ export default function MacroPage() {
         fetchMarket('SPY'),
         fetchMarket('UUP'),
         fetchMarket('IEF'),
+        fetchMarket('BTC-USD'), // Fetch Bitcoin
+        fetchMarket('GC=F'),    // Fetch Gold
         fetchNews()
       ]);
 
@@ -82,6 +85,8 @@ export default function MacroPage() {
         sp500: spy,
         dxy: uup,
         yields: ief,
+        btc: btcData,     // Save Bitcoin
+        gold: goldData,   // Save Gold
         news: newsData
       });
     }
@@ -119,6 +124,11 @@ export default function MacroPage() {
               <WatchlistItem label="S&P 500 (SPY)" value={data.sp500.price} change={data.sp500.change} isPositive={data.sp500.pos} />
               <WatchlistItem label="US 10Y Yield (IEF)" value={data.yields.price} change={data.yields.change} isPositive={data.yields.pos} />
               <WatchlistItem label="DXY Index (UUP)" value={data.dxy.price} change={data.dxy.change} isPositive={data.dxy.pos} />
+              
+              {/* New Crypto & Commodity Assets */}
+              <WatchlistItem label="Bitcoin (BTC)" value={data.btc.price} change={data.btc.change} isPositive={data.btc.pos} />
+              <WatchlistItem label="Gold (GC=F)" value={data.gold.price} change={data.gold.change} isPositive={data.gold.pos} />
+              
               <div style={{ height: '1px', background: '#1b2226', margin: '5px 0' }} />
               <WatchlistItem label="Real GDP" value={typeof latestGDPValue === 'number' ? `${(latestGDPValue / 1000).toFixed(1)}T` : "---"} change="Quarterly" isPositive={true} />
               <WatchlistItem label="Unemployment" value={latestUnemploymentValue ? `${latestUnemploymentValue}%` : "---"} change="Monthly" isPositive={latestUnemploymentValue < 5} />
