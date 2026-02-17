@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import MacroLineChart from '@/components/MacroLineChart';
 
 export default function MacroPage() {
-  // 1. Define State (Added BTC and Gold)
+  // 1. Define State (Added Active Tab & New Labor Data)
+  const [activeTab, setActiveTab] = useState('Overview');
   const [data, setData] = useState<any>({
     gdp: { data: [] },
     unemployment: { data: [] },
@@ -14,9 +15,12 @@ export default function MacroPage() {
     sp500: { price: "---", change: "0.00%", pos: true },
     dxy: { price: "---", change: "0.00%", pos: true },
     yields: { price: "---", change: "0.00%", pos: true },
-    btc: { price: "---", change: "0.00%", pos: true },   // New
-    gold: { price: "---", change: "0.00%", pos: true },  // New
-    news: []
+    btc: { price: "---", change: "0.00%", pos: true },
+    gold: { price: "---", change: "0.00%", pos: true },
+    news: [],
+    // New Phase 2 Data
+    nfp: { data: [] },
+    participation: { data: [] }
   });
 
   // 2. Fetch Data
@@ -56,13 +60,12 @@ export default function MacroPage() {
           const json = await res.json();
           return json.data || [];
         } catch (e) {
-          console.error("News fetch failed", e);
           return [];
         }
       };
 
-      // Run all fetches concurrently (Added BTC-USD and GC=F)
-      const [gdp, ur, cpi, fed, rec, spy, uup, ief, btcData, goldData, newsData] = await Promise.all([
+      // Fetch core + new labor data
+      const [gdp, ur, cpi, fed, rec, spy, uup, ief, btcData, goldData, newsData, nfpData, partData] = await Promise.all([
         fetchSeries('real_gdp'),
         fetchSeries('unemployment_rate'),
         fetchSeries('cpi_headline'),
@@ -71,23 +74,17 @@ export default function MacroPage() {
         fetchMarket('SPY'),
         fetchMarket('UUP'),
         fetchMarket('IEF'),
-        fetchMarket('BTC-USD'), // Fetch Bitcoin
-        fetchMarket('GC=F'),    // Fetch Gold
-        fetchNews()
+        fetchMarket('BTC-USD'),
+        fetchMarket('GC=F'),
+        fetchNews(),
+        fetchSeries('nonfarm_payrolls'),
+        fetchSeries('labor_participation')
       ]);
 
       setData({
-        gdp,
-        unemployment: ur,
-        cpi,
-        fedFunds: fed,
-        recessions: rec,
-        sp500: spy,
-        dxy: uup,
-        yields: ief,
-        btc: btcData,     // Save Bitcoin
-        gold: goldData,   // Save Gold
-        news: newsData
+        gdp, unemployment: ur, cpi, fedFunds: fed, recessions: rec,
+        sp500: spy, dxy: uup, yields: ief, btc: btcData, gold: goldData, news: newsData,
+        nfp: nfpData, participation: partData
       });
     }
 
@@ -111,32 +108,29 @@ export default function MacroPage() {
         </div>
       </header>
 
-      {/* MAIN GRID: 2 Columns (Sidebar | Main Content) */}
+      {/* MAIN GRID */}
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '30px' }}>
         
-        {/* LEFT SIDEBAR: Watchlist + News */}
+        {/* LEFT SIDEBAR (Watchlist + News + Ad Box) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
           
-          {/* 1. WATCHLIST */}
+          {/* WATCHLIST */}
           <aside className="card" style={{ background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
             <div style={{ fontSize: '12px', fontWeight: 700, opacity: 0.5, marginBottom: '20px', letterSpacing: '1px' }}>WATCHLIST</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <WatchlistItem label="S&P 500 (SPY)" value={data.sp500.price} change={data.sp500.change} isPositive={data.sp500.pos} />
               <WatchlistItem label="US 10Y Yield (IEF)" value={data.yields.price} change={data.yields.change} isPositive={data.yields.pos} />
               <WatchlistItem label="DXY Index (UUP)" value={data.dxy.price} change={data.dxy.change} isPositive={data.dxy.pos} />
-              
-              {/* New Crypto & Commodity Assets */}
               <WatchlistItem label="Bitcoin (BTC)" value={data.btc.price} change={data.btc.change} isPositive={data.btc.pos} />
               <WatchlistItem label="Gold (GC=F)" value={data.gold.price} change={data.gold.change} isPositive={data.gold.pos} />
-              
               <div style={{ height: '1px', background: '#1b2226', margin: '5px 0' }} />
               <WatchlistItem label="Real GDP" value={typeof latestGDPValue === 'number' ? `${(latestGDPValue / 1000).toFixed(1)}T` : "---"} change="Quarterly" isPositive={true} />
               <WatchlistItem label="Unemployment" value={latestUnemploymentValue ? `${latestUnemploymentValue}%` : "---"} change="Monthly" isPositive={latestUnemploymentValue < 5} />
             </div>
           </aside>
 
-          {/* 2. NEWS WIRE (Scrollable) */}
-          <aside className="card" style={{ flex: 1, background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px', maxHeight: '600px', overflowY: 'auto' }}>
+          {/* LIVE WIRE */}
+          <aside className="card" style={{ flex: 1, background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px', maxHeight: '400px', overflowY: 'auto' }}>
             <div style={{ fontSize: '12px', fontWeight: 700, opacity: 0.5, marginBottom: '20px', letterSpacing: '1px' }}>LIVE WIRE</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {data.news.length === 0 ? (
@@ -152,30 +146,78 @@ export default function MacroPage() {
               )}
             </div>
           </aside>
+
+          {/* ADVERTISEMENT PLACEHOLDER */}
+          <aside className="card" style={{ background: '#0b0f0f', border: '1px dashed #333', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '150px', opacity: 0.7 }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, opacity: 0.5, letterSpacing: '2px', marginBottom: '10px' }}>SPONSORED</div>
+            <div style={{ fontSize: '13px', color: '#aaa', textAlign: 'center' }}>
+              Advertisement Space Available<br/>
+              <span style={{ fontSize: '11px', opacity: 0.5 }}>(Contact admin to place your ad here)</span>
+            </div>
+          </aside>
+
         </div>
 
-        {/* RIGHT CONTENT: Stacked Charts */}
-        <section style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+        {/* RIGHT CONTENT: Tabs + Charts */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* Chart 1: Inflation */}
-          <div className="card" style={{ height: '450px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-            <MacroLineChart 
-              title="Monetary Policy & Inflation" 
-              subtitle="CPI Headline vs. Fed Funds Rate" 
-              series={[{ id: 'cpi', name: 'CPI', data: data.cpi.data }, { id: 'fed', name: 'Fed Funds', data: data.fedFunds.data }]} 
-              recessions={data.recessions.data}
-            />
+          {/* TAB NAVIGATION */}
+          <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid #1b2226', paddingBottom: '10px' }}>
+            {['Overview', 'Labor Market', 'Inflation', 'Liquidity'].map(tab => (
+              <button 
+                key={tab} 
+                onClick={() => setActiveTab(tab)} 
+                style={{ 
+                  background: activeTab === tab ? '#1b2226' : 'transparent', 
+                  color: activeTab === tab ? '#fff' : '#888', 
+                  border: 'none', 
+                  padding: '10px 20px', 
+                  borderRadius: '8px', 
+                  cursor: 'pointer', 
+                  fontWeight: 600,
+                  transition: '0.2s'
+                }}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
 
-          {/* Chart 2: Growth */}
-          <div className="card" style={{ height: '450px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-            <MacroLineChart title="Economic Growth" subtitle="Real GDP" series={[{ id: 'gdp', name: 'Real GDP', data: data.gdp.data }]} recessions={data.recessions.data} />
-          </div>
+          {/* TAB CONTENT: OVERVIEW */}
+          {activeTab === 'Overview' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
+                <MacroLineChart title="Monetary Policy & Inflation" subtitle="CPI Headline vs. Fed Funds Rate" series={[{ id: 'cpi', name: 'CPI', data: data.cpi.data }, { id: 'fed', name: 'Fed Funds', data: data.fedFunds.data }]} recessions={data.recessions.data} />
+              </div>
+              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
+                <MacroLineChart title="Economic Growth" subtitle="Real GDP" series={[{ id: 'gdp', name: 'Real GDP', data: data.gdp.data }]} recessions={data.recessions.data} />
+              </div>
+            </div>
+          )}
 
-          {/* Chart 3: Labor */}
-          <div className="card" style={{ height: '450px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-            <MacroLineChart title="Labor Market" subtitle="Unemployment Rate" series={[{ id: 'ur', name: 'Unemployment', data: data.unemployment.data, unit: '%' }]} recessions={data.recessions.data} />
-          </div>
+          {/* TAB CONTENT: LABOR MARKET */}
+          {activeTab === 'Labor Market' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
+                <MacroLineChart title="Job Creation" subtitle="Non-Farm Payrolls (Monthly Change)" series={[{ id: 'nfp', name: 'NFP (Thousands)', data: data.nfp.data }]} recessions={data.recessions.data} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
+                <div className="card" style={{ height: '350px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
+                  <MacroLineChart title="Unemployment" subtitle="Headline Rate (U3)" series={[{ id: 'ur', name: 'Unemployment', data: data.unemployment.data, unit: '%' }]} recessions={data.recessions.data} />
+                </div>
+                <div className="card" style={{ height: '350px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
+                  <MacroLineChart title="Workforce" subtitle="Labor Force Participation" series={[{ id: 'part', name: 'Participation', data: data.participation.data, unit: '%' }]} recessions={data.recessions.data} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB CONTENT: PLACEHOLDERS FOR NEXT STEPS */}
+          {(activeTab === 'Inflation' || activeTab === 'Liquidity') && (
+            <div style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b0f0f', border: '1px dashed #333', borderRadius: '16px', color: '#888' }}>
+              {activeTab} Data Modules Initializing... (Next Step)
+            </div>
+          )}
 
         </section>
 
