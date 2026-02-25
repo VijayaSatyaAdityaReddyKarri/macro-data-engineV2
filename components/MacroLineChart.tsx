@@ -45,13 +45,12 @@ export default function MacroLineChart({ seriesId }: MacroLineChartProps) {
   const [chartData, setChartData] = useState<{ time: string; value: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. THIS IS THE FETCH! It reaches out to FastAPI based on the seriesId
+  // 1. THIS IS THE FETCH! (Updated for Vercel production)
   useEffect(() => {
     setLoading(true);
-    fetch(`http://127.0.0.1:8000/api/data/${seriesId}`)
+    fetch(`/api/data/${seriesId}`) // <--- REMOVED localhost URL HERE
       .then(res => res.json())
       .then(data => {
-        // FastAPI sends { date, value }, but your chart expects { time, value }
         const formattedData = data.map((d: any) => ({
           time: d.date,
           value: d.value
@@ -100,7 +99,7 @@ export default function MacroLineChart({ seriesId }: MacroLineChartProps) {
           label: (ctx: any) => `${ctx.dataset.label}: ${ctx.parsed.y}${transform === 'yoy' ? '%' : ''}`
         }
       },
-      recessionBars: { data: [] } // Can wire this up to an API later!
+      recessionBars: { data: [] }
     },
     scales: {
       x: { grid: { display: false }, ticks: { color: '#444', maxTicksLimit: 6 } },
@@ -123,7 +122,6 @@ export default function MacroLineChart({ seriesId }: MacroLineChartProps) {
   return (
     <div style={{ height: '100%', width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-        {/* Toggle Buttons */}
         <div style={{ display: 'flex', background: '#1b2226', borderRadius: '6px', padding: '2px' }}>
           <button 
             onClick={() => setTransform('level')}
