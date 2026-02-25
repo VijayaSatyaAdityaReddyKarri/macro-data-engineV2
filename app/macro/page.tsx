@@ -1,91 +1,80 @@
-'use client';
+"use client";
 
 import React, { useEffect, useState } from 'react';
 import MacroLineChart from '@/components/MacroLineChart';
 
 export default function MacroPage() {
-  const [activeTab, setActiveTab] = useState('Overview');
-  const [data, setData] = useState<any>({
-    gdp: { data: [] },
-    unemployment: { data: [] },
-    cpi: { data: [] },
-    fedFunds: { data: [] },
-    recessions: { data: [] },
-    sp500: { price: "---", change: "0.00%", pos: true },
-    dxy: { price: "---", change: "0.00%", pos: true },
-    yields: { price: "---", change: "0.00%", pos: true },
+  const [activeTab, setActiveTab] = useState(''); // Initially empty, will be set by DB
+  const [metadata, setMetadata] = useState<any[]>([]);
+  const [market, setMarket] = useState<any>({
+    spy: { price: "---", change: "0.00%", pos: true },
+    ief: { price: "---", change: "0.00%", pos: true },
+    uup: { price: "---", change: "0.00%", pos: true },
     btc: { price: "---", change: "0.00%", pos: true },
     gold: { price: "---", change: "0.00%", pos: true },
-    news: [],
-    nfp: { data: [] },
-    participation: { data: [] },
-    // Phase 2: Inflation & Liquidity
-    cpiCore: { data: [] },
-    pce: { data: [] },
-    m2: { data: [] },
-    debt: { data: [] }
   });
+  const [news, setNews] = useState<any[]>([]);
+  const [latestGDP, setLatestGDP] = useState<number | null>(null);
 
   useEffect(() => {
-    async function loadAllData() {
-      const fetchSeries = async (slug: string) => {
-        try {
-          const res = await fetch(`/api/series/${slug}`);
-          const json = await res.json();
-          if (!json.data) return { data: [] };
-          return { data: json.data.map((item: any) => ({ time: item.date, value: item.value })) };
-        } catch (e) {
-          return { data: [] };
+    // 1. Fetch Dynamic Tabs from Phase 3 Database (Updated for Vercel production)
+    fetch("/api/tabs")
+      .then(res => res.json())
+      .then(data => {
+        setMetadata(data);
+        // Automatically set the first tab as active upon loading
+        if (data.length > 0 && activeTab === '') {
+          setActiveTab(data[0].tab_name);
         }
-      };
+      })
+      .catch(err => console.error(err));
 
-      const fetchMarket = async (symbol: string) => {
-        try {
-          const res = await fetch(`/api/market/${symbol}`);
-          if (!res.ok) return { price: "---", change: "0.00%", pos: true };
-          return await res.json();
-        } catch (e) {
-          return { price: "ERR", change: "0.00%", pos: true };
-        }
-      };
+    // 2. Fetch Latest BEA GDP for the Watchlist (Updated for Vercel production)
+    fetch("/api/latest/BEA_REAL_GDP")
+      .then(res => res.json())
+      .then(data => setLatestGDP(data.value))
+      .catch(err => console.error(err));
 
-      const fetchNews = async () => {
-        try {
-          const res = await fetch(`/api/news`);
-          const json = await res.json();
-          return json.data || [];
-        } catch (e) {
-          return [];
-        }
-      };
+    // 3. Fetch Yahoo Finance Market Data (Updated for Vercel production)
+    const fetchMarket = async (symbol: string) => {
+      try {
+        const res = await fetch(`/api/market/${symbol}`);
+        return await res.json();
+      } catch (e) {
+        return { price: "ERR", change: "0.00%", pos: true };
+      }
+    };
 
-      const [
-        gdp, ur, cpi, fed, rec, spy, uup, ief, btcData, goldData, newsData, 
-        nfpData, partData, cpiCore, pce, m2, debt
-      ] = await Promise.all([
-        fetchSeries('real_gdp'), fetchSeries('unemployment_rate'), fetchSeries('cpi_headline'),
-        fetchSeries('fed_funds'), fetchSeries('recessions'), fetchMarket('SPY'),
-        fetchMarket('UUP'), fetchMarket('IEF'), fetchMarket('BTC-USD'), fetchMarket('GC=F'), fetchNews(),
-        fetchSeries('nonfarm_payrolls'), fetchSeries('labor_participation'),
-        fetchSeries('cpi_core'), fetchSeries('pce_price_index'), 
-        fetchSeries('m2_money_supply'), fetchSeries('public_debt')
+    // 4. Fetch Yahoo Finance News (Updated for Vercel production)
+    const fetchNews = async () => {
+      try {
+        const res = await fetch(`/api/news`);
+        const json = await res.json();
+        setNews(json.data || []);
+      } catch (e) {
+        setNews([]);
+      }
+    };
+
+    async function loadWatchlist() {
+      const [spy, ief, uup, btc, gold] = await Promise.all([
+        fetchMarket('SPY'), fetchMarket('IEF'), fetchMarket('UUP'), fetchMarket('BTC-USD'), fetchMarket('GC=F')
       ]);
-
-      setData({
-        gdp, unemployment: ur, cpi, fedFunds: fed, recessions: rec,
-        sp500: spy, dxy: uup, yields: ief, btc: btcData, gold: goldData, news: newsData,
-        nfp: nfpData, participation: partData, cpiCore, pce, m2, debt
-      });
+      setMarket({ spy, ief, uup, btc, gold });
+      fetchNews();
     }
+    
+    loadWatchlist();
+  }, [activeTab]); // Dependency on activeTab ensures smooth initial state transition
 
-    loadAllData();
-  }, []);
-
-  const latestGDPValue = data.gdp.data.length > 0 ? data.gdp.data[data.gdp.data.length - 1].value : null;
-  const latestUnemploymentValue = data.unemployment.data.length > 0 ? data.unemployment.data[data.unemployment.data.length - 1].value : null;
+  // Determine what tabs exist based on the database (preserving DB order)
+  const dynamicTabs = Array.from(new Set(metadata.map((item) => item.tab_name)));
+  
+  // Filter charts for the currently active tab
+  const activeCharts = metadata.filter((item) => item.tab_name === activeTab);
 
   return (
-    <main style={{ maxWidth: '1800px', margin: '0 auto', padding: '20px', backgroundColor: 'transparent', minHeight: '100vh', color: 'white', fontFamily: 'sans-serif' }}>
+    <main style={{ maxWidth: '1800px', margin: '0 auto', padding: '20px', backgroundColor: '#000', minHeight: '100vh', color: 'white', fontFamily: 'sans-serif' }}>
       
       {/* HEADER */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid #1b2226', paddingBottom: '15px' }}>
@@ -101,27 +90,29 @@ export default function MacroPage() {
         
         {/* LEFT SIDEBAR */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+          
+          {/* WATCHLIST */}
           <aside className="card" style={{ background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
             <div style={{ fontSize: '12px', fontWeight: 700, opacity: 0.5, marginBottom: '20px', letterSpacing: '1px' }}>WATCHLIST</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <WatchlistItem label="S&P 500 (SPY)" value={data.sp500.price} change={data.sp500.change} isPositive={data.sp500.pos} />
-              <WatchlistItem label="US 10Y Yield (IEF)" value={data.yields.price} change={data.yields.change} isPositive={data.yields.pos} />
-              <WatchlistItem label="DXY Index (UUP)" value={data.dxy.price} change={data.dxy.change} isPositive={data.dxy.pos} />
-              <WatchlistItem label="Bitcoin (BTC)" value={data.btc.price} change={data.btc.change} isPositive={data.btc.pos} />
-              <WatchlistItem label="Gold (GC=F)" value={data.gold.price} change={data.gold.change} isPositive={data.gold.pos} />
+              <WatchlistItem label="S&P 500 (SPY)" value={market.spy.price} change={market.spy.change} isPositive={market.spy.pos} />
+              <WatchlistItem label="US 10Y Yield (IEF)" value={market.ief.price} change={market.ief.change} isPositive={market.ief.pos} />
+              <WatchlistItem label="DXY Index (UUP)" value={market.uup.price} change={market.uup.change} isPositive={market.uup.pos} />
+              <WatchlistItem label="Bitcoin (BTC)" value={market.btc.price} change={market.btc.change} isPositive={market.btc.pos} />
+              <WatchlistItem label="Gold (GC=F)" value={market.gold.price} change={market.gold.change} isPositive={market.gold.pos} />
               <div style={{ height: '1px', background: '#1b2226', margin: '5px 0' }} />
-              <WatchlistItem label="Real GDP" value={typeof latestGDPValue === 'number' ? `${(latestGDPValue / 1000).toFixed(1)}T` : "---"} change="Quarterly" isPositive={true} />
-              <WatchlistItem label="Unemployment" value={latestUnemploymentValue ? `${latestUnemploymentValue}%` : "---"} change="Monthly" isPositive={latestUnemploymentValue < 5} />
+              <WatchlistItem label="Real GDP (BEA)" value={latestGDP ? `${(latestGDP / 1000).toFixed(2)}T` : "---"} change="Quarterly" isPositive={true} />
             </div>
           </aside>
 
+          {/* LIVE WIRE */}
           <aside className="card" style={{ flex: 1, background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px', maxHeight: '400px', overflowY: 'auto' }}>
             <div style={{ fontSize: '12px', fontWeight: 700, opacity: 0.5, marginBottom: '20px', letterSpacing: '1px' }}>LIVE WIRE</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {data.news.length === 0 ? (
+              {news.length === 0 ? (
                  <div style={{opacity: 0.3, fontSize: '12px'}}>Connecting to wire...</div>
               ) : (
-                 data.news.map((item: any, i: number) => (
+                 news.map((item: any, i: number) => (
                    <a key={i} href={item.link} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block', paddingBottom: '15px', borderBottom: '1px solid #1b2226' }}>
                      <div style={{ fontSize: '11px', color: '#d4af37', marginBottom: '5px', fontWeight: 'bold' }}>{item.publisher}</div>
                      <div style={{ fontSize: '13px', lineHeight: '1.4', fontWeight: 500, marginBottom: '5px' }}>{item.title}</div>
@@ -131,22 +122,24 @@ export default function MacroPage() {
               )}
             </div>
           </aside>
-          
-          <aside className="card" style={{ background: '#0b0f0f', border: '1px dashed #333', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '150px', opacity: 0.7 }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, opacity: 0.5, letterSpacing: '2px', marginBottom: '10px' }}>SPONSORED</div>
-            <div style={{ fontSize: '13px', color: '#aaa', textAlign: 'center' }}>
-              Advertisement Space Available<br/>
-              <span style={{ fontSize: '11px', opacity: 0.5 }}>(Contact admin to place your ad here)</span>
+
+          {/* ADVERTISEMENT BOX */}
+          <aside className="card" style={{ background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px', textAlign: 'center', marginTop: 'auto' }}>
+            [cite_start]<div style={{ fontSize: '10px', fontWeight: 700, opacity: 0.5, marginBottom: '10px', letterSpacing: '1px', color: '#888' }}>SPONSORED [cite: 174]</div>
+            <div style={{ fontSize: '13px', color: '#aaa', padding: '10px 0', lineHeight: '1.5' }}>
+              [cite_start]Advertisement Space Available [cite: 175]<br/>
+              [cite_start]<span style={{ fontSize: '11px', opacity: 0.6 }}>(Contact admin to place your ad here) [cite: 175]</span>
             </div>
           </aside>
+
         </div>
 
-        {/* RIGHT CONTENT: Tabs + Charts */}
+        {/* RIGHT CONTENT */}
         <section style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           {/* TAB NAVIGATION */}
-          <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid #1b2226', paddingBottom: '10px' }}>
-            {['Overview', 'Labor Market', 'Inflation', 'Liquidity'].map(tab => (
+          <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid #1b2226', paddingBottom: '10px', overflowX: 'auto' }}>
+            {dynamicTabs.map(tab => (
               <button 
                 key={tab} 
                 onClick={() => setActiveTab(tab)} 
@@ -158,7 +151,8 @@ export default function MacroPage() {
                   borderRadius: '8px', 
                   cursor: 'pointer', 
                   fontWeight: 600,
-                  transition: '0.2s'
+                  transition: '0.2s',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {tab}
@@ -166,58 +160,21 @@ export default function MacroPage() {
             ))}
           </div>
 
-          {/* TAB CONTENT: OVERVIEW */}
-          {activeTab === 'Overview' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-                <MacroLineChart title="Monetary Policy & Inflation" subtitle="CPI Headline vs. Fed Funds Rate" series={[{ id: 'cpi', name: 'CPI', data: data.cpi.data }, { id: 'fed', name: 'Fed Funds', data: data.fedFunds.data }]} recessions={data.recessions.data} />
-              </div>
-              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-                <MacroLineChart title="Economic Growth" subtitle="Real GDP" series={[{ id: 'gdp', name: 'Real GDP', data: data.gdp.data }]} recessions={data.recessions.data} />
-              </div>
-            </div>
-          )}
-
-          {/* TAB CONTENT: LABOR MARKET */}
-          {activeTab === 'Labor Market' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-                <MacroLineChart title="Job Creation" subtitle="Non-Farm Payrolls (Monthly Change)" series={[{ id: 'nfp', name: 'NFP (Thousands)', data: data.nfp.data }]} recessions={data.recessions.data} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-                <div className="card" style={{ height: '350px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-                  <MacroLineChart title="Unemployment" subtitle="Headline Rate (U3)" series={[{ id: 'ur', name: 'Unemployment', data: data.unemployment.data, unit: '%' }]} recessions={data.recessions.data} />
-                </div>
-                <div className="card" style={{ height: '350px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-                  <MacroLineChart title="Workforce" subtitle="Labor Force Participation" series={[{ id: 'part', name: 'Participation', data: data.participation.data, unit: '%' }]} recessions={data.recessions.data} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB CONTENT: INFLATION */}
-          {activeTab === 'Inflation' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-                <MacroLineChart title="Inflation Dynamics" subtitle="Headline CPI vs. Core CPI (Sticky Inflation)" series={[{ id: 'cpi', name: 'Headline CPI', data: data.cpi.data }, { id: 'cpiCore', name: 'Core CPI', data: data.cpiCore.data }]} recessions={data.recessions.data} />
-              </div>
-              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-                <MacroLineChart title="Fed's Preferred Gauge" subtitle="PCE Price Index" series={[{ id: 'pce', name: 'PCE Price Index', data: data.pce.data }]} recessions={data.recessions.data} />
-              </div>
-            </div>
-          )}
-
-          {/* TAB CONTENT: LIQUIDITY */}
-          {activeTab === 'Liquidity' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-                <MacroLineChart title="System Liquidity" subtitle="M2 Money Supply (Billions USD)" series={[{ id: 'm2', name: 'M2 Money Supply', data: data.m2.data }]} recessions={data.recessions.data} />
-              </div>
-              <div className="card" style={{ height: '400px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
-                <MacroLineChart title="Fiscal Health" subtitle="Federal Public Debt (Millions USD)" series={[{ id: 'debt', name: 'Public Debt', data: data.debt.data }]} recessions={data.recessions.data} />
-              </div>
-            </div>
-          )}
+          {/* DYNAMIC CHARTS GRID */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
+            {activeCharts.map((chart) => (
+               <div key={chart.series_id} className="card" style={{ height: '350px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
+                 <div style={{ marginBottom: '10px' }}>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#fff' }}>{chart.title}</h3>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>Source: {chart.source}</p>
+                 </div>
+                 <div style={{ height: 'calc(100% - 40px)' }}>
+                    <MacroLineChart seriesId={chart.series_id} />
+                 </div>
+               </div>
+            ))}
+            {activeCharts.length === 0 && <p style={{ color: '#888' }}>Loading charts...</p>}
+          </div>
 
         </section>
       </div>

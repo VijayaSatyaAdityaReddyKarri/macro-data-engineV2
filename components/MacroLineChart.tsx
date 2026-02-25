@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -37,35 +37,50 @@ const recessionPlugin = {
 };
 
 interface MacroLineChartProps {
-  title: string;
-  subtitle?: string;
-  series: {
-    id: string;
-    name?: string;
-    data: { time: string; value: number }[];
-    unit?: string;
-  }[];
-  recessions?: { time: string; value: number }[];
+  seriesId: string;
 }
 
-export default function MacroLineChart({ title, subtitle, series, recessions }: MacroLineChartProps) {
+export default function MacroLineChart({ seriesId }: MacroLineChartProps) {
   const [transform, setTransform] = useState<'level' | 'yoy'>('level');
+  const [chartData, setChartData] = useState<{ time: string; value: number }[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Calculate YoY Data: (Current / Value 12 periods ago) - 1 
-  const transformedSeries = useMemo(() => {
-    if (transform === 'level') return series;
+  // 1. THIS IS THE FETCH! It reaches out to FastAPI based on the seriesId
+  useEffect(() => {
+    setLoading(true);
+    fetch(`http://127.0.0.1:8000/api/data/${seriesId}`)
+      .then(res => res.json())
+      .then(data => {
+        // FastAPI sends { date, value }, but your chart expects { time, value }
+        const formattedData = data.map((d: any) => ({
+          time: d.date,
+          value: d.value
+        }));
+        setChartData(formattedData);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Error fetching chart data:", err);
+        setLoading(false);
+      });
+  }, [seriesId]);
+
+  // 2. Calculate YoY Data
+  const transformedData = useMemo(() => {
+    if (transform === 'level') return chartData;
     
-    return series.map(s => ({
-      ...s,
-      data: s.data.map((point, i) => {
-        const prevYearIndex = i - 12; // Assuming monthly data
-        if (prevYearIndex < 0) return { ...point, value: null };
-        const prevValue = s.data[prevYearIndex].value;
-        const yoy = ((point.value / prevValue) - 1) * 100;
-        return { ...point, value: parseFloat(yoy.toFixed(2)) };
-      }).filter(p => p.value !== null)
-    }));
-  }, [series, transform]);
+    return chartData.map((point, i) => {
+      const prevYearIndex = i - 12; // Assuming monthly data spacing
+      if (prevYearIndex < 0) return { ...point, value: null };
+      const prevValue = chartData[prevYearIndex].value;
+      const yoy = ((point.value / prevValue) - 1) * 100;
+      return { ...point, value: parseFloat(yoy.toFixed(2)) };
+    }).filter(p => p.value !== null);
+  }, [chartData, transform]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-full text-slate-400">Loading {seriesId}...</div>;
+  }
 
   const options = {
     responsive: true,
@@ -85,7 +100,7 @@ export default function MacroLineChart({ title, subtitle, series, recessions }: 
           label: (ctx: any) => `${ctx.dataset.label}: ${ctx.parsed.y}${transform === 'yoy' ? '%' : ''}`
         }
       },
-      recessionBars: { data: recessions || [] }
+      recessionBars: { data: [] } // Can wire this up to an API later!
     },
     scales: {
       x: { grid: { display: false }, ticks: { color: '#444', maxTicksLimit: 6 } },
@@ -94,25 +109,21 @@ export default function MacroLineChart({ title, subtitle, series, recessions }: 
   };
 
   const data = {
-    labels: transformedSeries[0]?.data.map(d => d.time) || [],
-    datasets: transformedSeries.map(s => ({
-      label: s.name || s.id,
-      data: s.data.map(d => d.value),
+    labels: transformedData.map(d => d.time) || [],
+    datasets: [{
+      label: seriesId,
+      data: transformedData.map(d => d.value),
       borderColor: '#fccb0b',
       borderWidth: 2,
       pointRadius: 0,
       tension: 0.1,
-    }))
+    }]
   };
 
   return (
-    <div style={{ height: '320px', width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-        <div>
-          <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#fff' }}>{title}</h3>
-          <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>{subtitle} ({transform.toUpperCase()})</p>
-        </div>
-        {/* Toggle Buttons [cite: 22, 131, 216] */}
+    <div style={{ height: '100%', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+        {/* Toggle Buttons */}
         <div style={{ display: 'flex', background: '#1b2226', borderRadius: '6px', padding: '2px' }}>
           <button 
             onClick={() => setTransform('level')}
@@ -124,7 +135,9 @@ export default function MacroLineChart({ title, subtitle, series, recessions }: 
           >YoY %</button>
         </div>
       </div>
-      <Line options={options as any} data={data} plugins={[recessionPlugin]} />
+      <div style={{ height: 'calc(100% - 35px)' }}>
+        <Line options={options as any} data={data} plugins={[recessionPlugin]} />
+      </div>
     </div>
   );
 }
