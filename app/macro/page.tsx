@@ -128,7 +128,7 @@ export default function MacroPage() {
             <div style={{ fontSize: '10px', fontWeight: 700, opacity: 0.5, marginBottom: '10px', letterSpacing: '1px', color: '#888' }}>SPONSORED</div>
             <div style={{ fontSize: '13px', color: '#aaa', padding: '10px 0', lineHeight: '1.5' }}>
               Advertisement Space Available<br/>
-              <span style={{ fontSize: '11px', opacity: 0.6 }}>(Contact admin to place your ad here)</span>
+              <span style={{ fontSize: '11px', opacity: 0.6 }}>(Contact sage@worldtradefactory.com)</span>
             </div>
           </aside>
 
