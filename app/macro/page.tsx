@@ -125,10 +125,10 @@ export default function MacroPage() {
 
           {/* ADVERTISEMENT BOX */}
           <aside className="card" style={{ background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px', textAlign: 'center', marginTop: 'auto' }}>
-            [cite_start]<div style={{ fontSize: '10px', fontWeight: 700, opacity: 0.5, marginBottom: '10px', letterSpacing: '1px', color: '#888' }}>SPONSORED [cite: 174]</div>
+            <div style={{ fontSize: '10px', fontWeight: 700, opacity: 0.5, marginBottom: '10px', letterSpacing: '1px', color: '#888' }}>SPONSORED</div>
             <div style={{ fontSize: '13px', color: '#aaa', padding: '10px 0', lineHeight: '1.5' }}>
-              [cite_start]Advertisement Space Available [cite: 175]<br/>
-              [cite_start]<span style={{ fontSize: '11px', opacity: 0.6 }}>(Contact admin to place your ad here) [cite: 175]</span>
+              Advertisement Space Available<br/>
+              <span style={{ fontSize: '11px', opacity: 0.6 }}>(Contact admin to place your ad here)</span>
             </div>
           </aside>
 
