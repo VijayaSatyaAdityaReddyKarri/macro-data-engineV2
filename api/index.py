@@ -122,21 +122,23 @@ def read_root():
 
 # --- AI CHATBOT ENDPOINT ---
 
-# 1. Tell Python how to read the data Next.js sends
 class ChatRequest(BaseModel):
     message: str
-    chart_data: str  # This is where we will secretly pass the numbers
-
-# 2. Configure the Gemini Brain using your secret key
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-
-# We use "gemini-1.5-flash" because it is lightning fast and great for data
-ai_model = genai.GenerativeModel('gemini-1.5-flash')
+    chart_data: str
 
 @app.post("/api/chat")
 async def chat_with_analyst(request: ChatRequest):
     try:
-        # 3. Create the "System Prompt" (The Rules for the AI)
+        # 1. Grab the key INSIDE the route so it doesn't crash the whole server on startup
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            return {"answer": "Backend Error: GEMINI_API_KEY is missing in Vercel!"}
+            
+        # 2. Configure Gemini inside the function
+        genai.configure(api_key=api_key)
+        ai_model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # 3. Create the System Prompt
         system_prompt = f"""
         You are an expert macroeconomic analyst. 
         You are directly assisting a user on a financial dashboard.
@@ -148,14 +150,12 @@ async def chat_with_analyst(request: ChatRequest):
         {request.chart_data}
         """
         
-        # 4. Combine the rules with the user's actual question
         full_prompt = f"{system_prompt}\n\nUser Question: {request.message}"
         
-        # 5. Send it to Gemini and get the response
+        # 4. Get Response
         response = ai_model.generate_content(full_prompt)
-        
-        # 6. Send the text answer back to the Next.js website
         return {"answer": response.text}
-    
+        
     except Exception as e:
-        return {"error": str(e)}
+        # If the AI breaks, we return the error as a chat message instead of crashing the site!
+        return {"answer": f"AI Connection Error: {str(e)}"}
