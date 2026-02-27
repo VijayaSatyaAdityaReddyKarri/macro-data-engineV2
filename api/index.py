@@ -144,7 +144,7 @@ async def chat_with_analyst(request: ChatRequest):
         full_prompt = f"{system_prompt}\n\nUser Question: {request.message}"
         
         # 2. Make a DIRECT web request to Google (Bypasses Vercel library crashes!)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         payload = {
             "contents": [{"parts": [{"text": full_prompt}]}]
         }
