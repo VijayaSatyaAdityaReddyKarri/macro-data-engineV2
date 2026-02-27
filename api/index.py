@@ -5,8 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import yfinance as yf
 import datetime
 from dotenv import load_dotenv
-import google.generativeai as genai
 from pydantic import BaseModel
+import requests  # <-- We use this built-in web library instead of the bloated Google package!
 
 load_dotenv()
 
@@ -36,9 +36,7 @@ app.add_middleware(
 
 @app.get("/api/tabs")
 def get_tabs_metadata():
-    """Tells the frontend what tabs and charts exist, sorted by tab_order."""
     with engine.connect() as conn:
-        # UPDATED: Added tab_order to selection and sorting
         result = conn.execute(text("""
             SELECT series_id, title, source, tab_name, tab_order 
             FROM series_metadata 
@@ -48,7 +46,6 @@ def get_tabs_metadata():
 
 @app.get("/api/data/{series_id}")
 def get_chart_data(series_id: str):
-    """Sends the actual dates and values for a specific chart."""
     with engine.connect() as conn:
         result = conn.execute(text(
             "SELECT date, value FROM macro_data WHERE series_id = :series_id ORDER BY date"
@@ -57,7 +54,6 @@ def get_chart_data(series_id: str):
 
 @app.get("/api/latest/{series_id}")
 def get_latest_value(series_id: str):
-    """Gets just the single most recent data point for the Watchlist."""
     with engine.connect() as conn:
         result = conn.execute(text(
             "SELECT value FROM macro_data WHERE series_id = :series_id ORDER BY date DESC LIMIT 1"
@@ -120,7 +116,7 @@ def read_root():
     return {"message": "SKXY Macro Terminal API is running!"}
 
 
-# --- AI CHATBOT ENDPOINT ---
+# --- AI CHATBOT ENDPOINT (DIRECT API METHOD) ---
 
 class ChatRequest(BaseModel):
     message: str
@@ -129,16 +125,11 @@ class ChatRequest(BaseModel):
 @app.post("/api/chat")
 async def chat_with_analyst(request: ChatRequest):
     try:
-        # 1. Grab the key INSIDE the route so it doesn't crash the whole server on startup
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             return {"answer": "Backend Error: GEMINI_API_KEY is missing in Vercel!"}
-            
-        # 2. Configure Gemini inside the function
-        genai.configure(api_key=api_key)
-        ai_model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # 3. Create the System Prompt
+        # 1. Create the Rules
         system_prompt = f"""
         You are an expert macroeconomic analyst. 
         You are directly assisting a user on a financial dashboard.
@@ -152,10 +143,25 @@ async def chat_with_analyst(request: ChatRequest):
         
         full_prompt = f"{system_prompt}\n\nUser Question: {request.message}"
         
-        # 4. Get Response
-        response = ai_model.generate_content(full_prompt)
-        return {"answer": response.text}
+        # 2. Make a DIRECT web request to Google (Bypasses Vercel library crashes!)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": full_prompt}]}]
+        }
         
+        response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
+        
+        if response.status_code != 200:
+            return {"answer": f"Google API Error: {response.text}"}
+            
+        data = response.json()
+        
+        # 3. Parse the answer
+        try:
+            answer = data["candidates"][0]["content"]["parts"][0]["text"]
+            return {"answer": answer}
+        except Exception:
+            return {"answer": "Sorry, the AI returned an empty response."}
+            
     except Exception as e:
-        # If the AI breaks, we return the error as a chat message instead of crashing the site!
         return {"answer": f"AI Connection Error: {str(e)}"}

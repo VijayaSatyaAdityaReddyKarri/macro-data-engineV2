@@ -6,4 +6,3 @@ pandas
 yfinance
 requests
 python-dotenv
-google-generativeai
