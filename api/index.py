@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import yfinance as yf
 import datetime
 from dotenv import load_dotenv
+import google.generativeai as genai
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -116,3 +118,44 @@ def get_news():
 @app.get("/")
 def read_root():
     return {"message": "SKXY Macro Terminal API is running!"}
+
+
+# --- AI CHATBOT ENDPOINT ---
+
+# 1. Tell Python how to read the data Next.js sends
+class ChatRequest(BaseModel):
+    message: str
+    chart_data: str  # This is where we will secretly pass the numbers
+
+# 2. Configure the Gemini Brain using your secret key
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+# We use "gemini-1.5-flash" because it is lightning fast and great for data
+ai_model = genai.GenerativeModel('gemini-1.5-flash')
+
+@app.post("/api/chat")
+async def chat_with_analyst(request: ChatRequest):
+    try:
+        # 3. Create the "System Prompt" (The Rules for the AI)
+        system_prompt = f"""
+        You are an expert macroeconomic analyst. 
+        You are directly assisting a user on a financial dashboard.
+        Use the following chart data summary to answer the user's question accurately.
+        Do not make up any numbers. If the answer isn't in the data, just say you don't have that specific data point right now.
+        Keep your answer concise, professional, and easy to read.
+        
+        CURRENT CHART DATA:
+        {request.chart_data}
+        """
+        
+        # 4. Combine the rules with the user's actual question
+        full_prompt = f"{system_prompt}\n\nUser Question: {request.message}"
+        
+        # 5. Send it to Gemini and get the response
+        response = ai_model.generate_content(full_prompt)
+        
+        # 6. Send the text answer back to the Next.js website
+        return {"answer": response.text}
+    
+    except Exception as e:
+        return {"error": str(e)}
