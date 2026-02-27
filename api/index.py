@@ -2,11 +2,10 @@ import os
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import create_engine, text
 from fastapi.middleware.cors import CORSMiddleware
-import yfinance as yf
 import datetime
 from dotenv import load_dotenv
 from pydantic import BaseModel
-import requests  # <-- We use this built-in web library instead of the bloated Google package!
+import requests  # <-- We use this built-in web library for EVERYTHING now! (No yfinance)
 
 load_dotenv()
 
@@ -62,17 +61,18 @@ def get_latest_value(series_id: str):
             return {"value": result["value"]}
         return {"value": None}
 
-# --- PHASE 2 ROUTES (Yahoo Finance Market Data & News) ---
+# --- DIRECT YAHOO FINANCE ROUTES (No yfinance library needed!) ---
 
 @app.get("/api/market/{symbol}")
 def get_market_data(symbol: str):
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=2d"
     try:
-        ticker = yf.Ticker(symbol)
-        price = ticker.fast_info.last_price
-        prev_close = ticker.fast_info.previous_close
-        
-        if price is None or prev_close is None:
-            return {"price": "---", "change": "0.00%", "pos": True}
+        res = requests.get(url, headers=headers, timeout=5)
+        data = res.json()
+        meta = data['chart']['result'][0]['meta']
+        price = meta['regularMarketPrice']
+        prev_close = meta['chartPreviousClose']
 
         change_percent = ((price - prev_close) / prev_close) * 100
         return {
@@ -80,35 +80,27 @@ def get_market_data(symbol: str):
             "change": f"{change_percent:+.2f}%",
             "pos": change_percent >= 0
         }
-    except Exception as e:
+    except Exception:
         return {"price": "---", "change": "0.00%", "pos": True}
 
 @app.get("/api/news")
 def get_news():
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    url = "https://query2.finance.yahoo.com/v1/finance/search?q=SPY&newsCount=10"
     try:
-        ticker = yf.Ticker("SPY")
-        raw_news = ticker.news
+        res = requests.get(url, headers=headers, timeout=5)
+        data = res.json()
+        news_items = data.get('news', [])
         clean_news = []
-        for item in raw_news:
-            news_data = item.get("content", item)
-            title = news_data.get("title")
-            provider = news_data.get("provider", {})
-            publisher = provider.get("displayName") if isinstance(provider, dict) else news_data.get("publisher", "Market News")
-            url_dict = news_data.get("canonicalUrl", {})
-            link = url_dict.get("url", news_data.get("link"))
-            time_val = news_data.get("pubDate", news_data.get("providerPublishTime"))
-            
-            if isinstance(time_val, str):
-                try:
-                    dt = datetime.datetime.fromisoformat(time_val.replace('Z', '+00:00'))
-                    time_val = int(dt.timestamp())
-                except:
-                    pass 
-            
-            if title and link:
-                clean_news.append({"title": title, "publisher": publisher, "link": link, "time": time_val})
-        return {"data": clean_news[:10]} 
-    except Exception as e:
+        for item in news_items:
+            clean_news.append({
+                "title": item.get("title", ""),
+                "publisher": item.get("publisher", "Market News"),
+                "link": item.get("link", "#"),
+                "time": item.get("providerPublishTime", 0)
+            })
+        return {"data": clean_news[:10]}
+    except Exception:
         return {"data": []}
 
 @app.get("/")
