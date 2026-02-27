@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import MacroLineChart from '@/components/MacroLineChart';
+import ChatPanel from '@/components/ChatPanel'; // <-- NEW: Imported our AI Chat component
 
 export default function MacroPage() {
   const [activeTab, setActiveTab] = useState(''); // Initially empty, will be set by DB
@@ -17,7 +18,7 @@ export default function MacroPage() {
   const [latestGDP, setLatestGDP] = useState<number | null>(null);
 
   useEffect(() => {
-    // 1. Fetch Dynamic Tabs from Phase 3 Database (Updated for Vercel production)
+    // 1. Fetch Dynamic Tabs from Phase 3 Database
     fetch("/api/tabs")
       .then(res => res.json())
       .then(data => {
@@ -29,13 +30,13 @@ export default function MacroPage() {
       })
       .catch(err => console.error(err));
 
-    // 2. Fetch Latest BEA GDP for the Watchlist (Updated for Vercel production)
+    // 2. Fetch Latest BEA GDP for the Watchlist
     fetch("/api/latest/BEA_REAL_GDP")
       .then(res => res.json())
       .then(data => setLatestGDP(data.value))
       .catch(err => console.error(err));
 
-    // 3. Fetch Yahoo Finance Market Data (Updated for Vercel production)
+    // 3. Fetch Yahoo Finance Market Data
     const fetchMarket = async (symbol: string) => {
       try {
         const res = await fetch(`/api/market/${symbol}`);
@@ -45,7 +46,7 @@ export default function MacroPage() {
       }
     };
 
-    // 4. Fetch Yahoo Finance News (Updated for Vercel production)
+    // 4. Fetch Yahoo Finance News
     const fetchNews = async () => {
       try {
         const res = await fetch(`/api/news`);
@@ -178,6 +179,10 @@ export default function MacroPage() {
 
         </section>
       </div>
+
+      {/* <-- NEW: The Floating AI Chat Panel --> */}
+      <ChatPanel />
+
     </main>
   );
 }
