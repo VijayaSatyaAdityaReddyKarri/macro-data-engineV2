@@ -108,7 +108,7 @@ def read_root():
     return {"message": "SKXY Macro Terminal API is running!"}
 
 
-# --- AI CHATBOT ENDPOINT (DIRECT API METHOD) ---
+# --- AI CHATBOT ENDPOINT (GROQ / LLAMA 3 METHOD) ---
 
 class ChatRequest(BaseModel):
     message: str
@@ -117,9 +117,10 @@ class ChatRequest(BaseModel):
 @app.post("/api/chat")
 async def chat_with_analyst(request: ChatRequest):
     try:
-        api_key = os.environ.get("GEMINI_API_KEY")
+        # Fetch the Groq key from your environment variables
+        api_key = os.environ.get("GROQ_API_KEY")
         if not api_key:
-            return {"answer": "Backend Error: GEMINI_API_KEY is missing in Vercel!"}
+            return {"answer": "Backend Error: GROQ_API_KEY is missing in Vercel/Environment!"}
         
         # 1. Create the Rules
         system_prompt = f"""
@@ -133,24 +134,32 @@ async def chat_with_analyst(request: ChatRequest):
         {request.chart_data}
         """
         
-        full_prompt = f"{system_prompt}\n\nUser Question: {request.message}"
-        
-        # 2. Make a DIRECT web request to Google (Bypasses Vercel library crashes!)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-        payload = {
-            "contents": [{"parts": [{"text": full_prompt}]}]
+        # 2. Make a DIRECT web request to Groq
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
         }
         
-        response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
+        payload = {
+            "model": "llama3-8b-8192",  # Fast, smart model
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": request.message}
+            ],
+            "temperature": 0.2
+        }
+        
+        response = requests.post(url, json=payload, headers=headers)
         
         if response.status_code != 200:
-            return {"answer": f"Google API Error: {response.text}"}
+            return {"answer": f"Groq API Error: {response.text}"}
             
         data = response.json()
         
         # 3. Parse the answer
         try:
-            answer = data["candidates"][0]["content"]["parts"][0]["text"]
+            answer = data["choices"][0]["message"]["content"]
             return {"answer": answer}
         except Exception:
             return {"answer": "Sorry, the AI returned an empty response."}
