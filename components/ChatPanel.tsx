@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 
-export default function ChatPanel() {
+// NEW: We added prop definitions here so TypeScript knows to accept the data!
+export default function ChatPanel({ activeTab = '', activeCharts = [] }: { activeTab?: string, activeCharts?: any[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([
-    { role: 'ai', text: 'Hi! I am your Macro AI Analyst. Ask me anything about the current data.' }
+    { role: 'ai', text: 'Hi! I am your Macro AI Analyst. Ask me anything about the data on your screen.' }
   ]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -20,14 +21,27 @@ export default function ChatPanel() {
     setIsLoading(true);
 
     try {
-      // Send the question to our new FastAPI Python route
+      // 1. Build the "Secret Whisper" dynamically based on what is on the screen!
+      let liveContext = `The user is currently looking at the '${activeTab}' tab.\nHere are the charts they can see and their latest values:\n`;
+      
+      for (const chart of activeCharts) {
+        try {
+          // Quickly fetch the latest number for each visible chart
+          const res = await fetch(`/api/latest/${chart.series_id}`);
+          const valData = await res.json();
+          liveContext += `- ${chart.title}: ${valData.value}\n`;
+        } catch (e) {
+          console.error("Failed to fetch context for", chart.series_id);
+        }
+      }
+
+      // 2. Send the question AND the live context to Groq
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: inputText,
-          // For now, we pass a dummy cheat-sheet. We will connect the real data next!
-          chart_data: "The user is looking at the Macro Dashboard. GDP is stable, and unemployment is currently at 4.3%."
+          chart_data: liveContext
         })
       });
 

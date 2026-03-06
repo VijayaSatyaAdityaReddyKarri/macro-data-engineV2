@@ -180,8 +180,8 @@ export default function MacroPage() {
         </section>
       </div>
 
-      {/* <-- NEW: The Floating AI Chat Panel --> */}
-      <ChatPanel />
+      {/* <-- NEW: Pass the active tab and charts into the AI Chat Panel --> */}
+      <ChatPanel activeTab={activeTab} activeCharts={activeCharts} />
 
     </main>
   );
