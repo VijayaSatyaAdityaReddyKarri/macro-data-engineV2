@@ -142,7 +142,7 @@ async def chat_with_analyst(request: ChatRequest):
         }
         
         payload = {
-            "model": "llama3-8b-8192",  # Fast, smart model
+            "model": "llama-3.3-70b-versatile",  # <-- NEW FLAGSHIP MODEL
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": request.message}
