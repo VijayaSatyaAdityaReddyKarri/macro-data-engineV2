@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import MacroLineChart from '@/components/MacroLineChart';
+import dynamic from 'next/dynamic';
+
+// This forces Next.js to skip Server-Side Rendering for the chart, 
+// which stops the "removeChild" DOM mismatch crash dead in its tracks!
+const MacroLineChart = dynamic(() => import('@/components/MacroLineChart'), { 
+  ssr: false,
+  loading: () => <p style={{ color: '#888', padding: '20px' }}>Loading chart data...</p>
+});
 import ChatPanel from '@/components/ChatPanel'; 
 
 export default function MacroPage() {
