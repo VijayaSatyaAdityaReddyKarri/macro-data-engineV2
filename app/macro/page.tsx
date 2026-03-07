@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import MacroLineChart from '@/components/MacroLineChart';
-import ChatPanel from '@/components/ChatPanel'; // <-- NEW: Imported our AI Chat component
+import ChatPanel from '@/components/ChatPanel'; 
 
 export default function MacroPage() {
-  const [activeTab, setActiveTab] = useState(''); // Initially empty, will be set by DB
+  const [activeTab, setActiveTab] = useState(''); 
   const [metadata, setMetadata] = useState<any[]>([]);
   const [market, setMarket] = useState<any>({
     spy: { price: "---", change: "0.00%", pos: true },
@@ -18,41 +18,47 @@ export default function MacroPage() {
   const [latestGDP, setLatestGDP] = useState<number | null>(null);
 
   useEffect(() => {
-    // 1. Fetch Dynamic Tabs from Phase 3 Database
+    // 1. Fetch Dynamic Tabs
     fetch("/api/tabs")
       .then(res => res.json())
       .then(data => {
         setMetadata(data);
         // Automatically set the first tab as active upon loading
-        if (data.length > 0 && activeTab === '') {
+        if (data.length > 0) {
           setActiveTab(data[0].tab_name);
         }
       })
-      .catch(err => console.error(err));
+      .catch(err => console.error("Failed to load tabs", err));
 
-    // 2. Fetch Latest BEA GDP for the Watchlist
+    // 2. Fetch Latest BEA GDP
     fetch("/api/latest/BEA_REAL_GDP")
       .then(res => res.json())
-      .then(data => setLatestGDP(data.value))
-      .catch(err => console.error(err));
+      .then(data => {
+        // Ensure it's safely parsed as a number
+        const val = parseFloat(data.value);
+        setLatestGDP(isNaN(val) ? null : val);
+      })
+      .catch(err => console.error("Failed to load GDP", err));
 
-    // 3. Fetch Yahoo Finance Market Data
+    // 3. Fetch Yahoo Finance Market Data safely
     const fetchMarket = async (symbol: string) => {
       try {
         const res = await fetch(`/api/market/${symbol}`);
+        if (!res.ok) throw new Error("Bad response");
         return await res.json();
       } catch (e) {
-        return { price: "ERR", change: "0.00%", pos: true };
+        return { price: "---", change: "0.00%", pos: true };
       }
     };
 
-    // 4. Fetch Yahoo Finance News
+    // 4. Fetch Yahoo Finance News safely
     const fetchNews = async () => {
       try {
         const res = await fetch(`/api/news`);
         const json = await res.json();
         setNews(json.data || []);
       } catch (e) {
+        console.error("News fetch failed", e);
         setNews([]);
       }
     };
@@ -66,12 +72,9 @@ export default function MacroPage() {
     }
     
     loadWatchlist();
-  }, [activeTab]); // Dependency on activeTab ensures smooth initial state transition
+  }, []); // <-- CRITICAL FIX: Empty array means this ONLY runs once on page load! No more traffic jams when switching tabs.
 
-  // Determine what tabs exist based on the database (preserving DB order)
   const dynamicTabs = Array.from(new Set(metadata.map((item) => item.tab_name)));
-  
-  // Filter charts for the currently active tab
   const activeCharts = metadata.filter((item) => item.tab_name === activeTab);
 
   return (
@@ -102,7 +105,7 @@ export default function MacroPage() {
               <WatchlistItem label="Bitcoin (BTC)" value={market.btc.price} change={market.btc.change} isPositive={market.btc.pos} />
               <WatchlistItem label="Gold (GC=F)" value={market.gold.price} change={market.gold.change} isPositive={market.gold.pos} />
               <div style={{ height: '1px', background: '#1b2226', margin: '5px 0' }} />
-              <WatchlistItem label="Real GDP (BEA)" value={latestGDP ? `${(latestGDP / 1000).toFixed(2)}T` : "---"} change="Quarterly" isPositive={true} />
+              <WatchlistItem label="Real GDP (BEA)" value={latestGDP !== null ? `${(latestGDP / 1000).toFixed(2)}T` : "---"} change="Quarterly" isPositive={true} />
             </div>
           </aside>
 
@@ -115,9 +118,12 @@ export default function MacroPage() {
               ) : (
                  news.map((item: any, i: number) => (
                    <a key={i} href={item.link} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block', paddingBottom: '15px', borderBottom: '1px solid #1b2226' }}>
-                     <div style={{ fontSize: '11px', color: '#d4af37', marginBottom: '5px', fontWeight: 'bold' }}>{item.publisher}</div>
-                     <div style={{ fontSize: '13px', lineHeight: '1.4', fontWeight: 500, marginBottom: '5px' }}>{item.title}</div>
-                     <div style={{ fontSize: '10px', opacity: 0.4 }}>{new Date(item.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                     <div style={{ fontSize: '11px', color: '#d4af37', marginBottom: '5px', fontWeight: 'bold' }}>{item.publisher || 'News'}</div>
+                     <div style={{ fontSize: '13px', lineHeight: '1.4', fontWeight: 500, marginBottom: '5px' }}>{item.title || 'Untitled'}</div>
+                     {/* CRITICAL FIX: Safely check for item.time before converting it to a Date */}
+                     <div style={{ fontSize: '10px', opacity: 0.4 }}>
+                       {item.time ? new Date(item.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Recent'}
+                     </div>
                    </a>
                  ))
               )}
@@ -174,13 +180,12 @@ export default function MacroPage() {
                  </div>
                </div>
             ))}
-            {activeCharts.length === 0 && <p style={{ color: '#888' }}>Loading charts...</p>}
+            {activeCharts.length === 0 && activeTab !== '' && <p style={{ color: '#888' }}>Loading charts...</p>}
           </div>
 
         </section>
       </div>
 
-      {/* <-- NEW: Pass everything into the AI Chat Panel so it can see the whole screen --> */}
       <ChatPanel 
         activeTab={activeTab} 
         activeCharts={activeCharts} 
