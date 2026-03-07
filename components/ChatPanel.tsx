@@ -2,8 +2,20 @@
 
 import React, { useState } from 'react';
 
-// NEW: We added prop definitions here so TypeScript knows to accept the data!
-export default function ChatPanel({ activeTab = '', activeCharts = [] }: { activeTab?: string, activeCharts?: any[] }) {
+// NEW: Accept the watchlist, news, and all available tabs
+export default function ChatPanel({ 
+  activeTab = '', 
+  activeCharts = [],
+  market = {},
+  news = [],
+  dynamicTabs = []
+}: { 
+  activeTab?: string, 
+  activeCharts?: any[],
+  market?: any,
+  news?: any[],
+  dynamicTabs?: string[]
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([
     { role: 'ai', text: 'Hi! I am your Macro AI Analyst. Ask me anything about the data on your screen.' }
@@ -21,12 +33,38 @@ export default function ChatPanel({ activeTab = '', activeCharts = [] }: { activ
     setIsLoading(true);
 
     try {
-      // 1. Build the "Secret Whisper" dynamically based on what is on the screen!
-      let liveContext = `The user is currently looking at the '${activeTab}' tab.\nHere are the charts they can see and their latest values:\n`;
+      // 1. Build a super-detailed "Secret Whisper" for the AI
+      let liveContext = `You are a sharp, helpful financial AI assistant. Keep answers concise.\n\n`;
+      
+      // Tell it about the Watchlist
+      liveContext += `[WATCHLIST (Sidebar)]\n`;
+      liveContext += `- S&P 500 (SPY): ${market?.spy?.price || 'Loading...'}\n`;
+      liveContext += `- US 10Y Yield (IEF): ${market?.ief?.price || 'Loading...'}\n`;
+      liveContext += `- DXY Index (UUP): ${market?.uup?.price || 'Loading...'}\n`;
+      liveContext += `- Bitcoin (BTC): ${market?.btc?.price || 'Loading...'}\n`;
+      liveContext += `- Gold (GC=F): ${market?.gold?.price || 'Loading...'}\n\n`;
+
+      // Tell it about the Live Wire (Top 3 news stories)
+      liveContext += `[LIVE WIRE NEWS (Sidebar)]\n`;
+      if (news && news.length > 0) {
+        news.slice(0, 3).forEach((n: any) => {
+          liveContext += `- ${n.publisher}: "${n.title}"\n`;
+        });
+      } else {
+        liveContext += `- No recent news loaded yet.\n`;
+      }
+      liveContext += `\n`;
+
+      // Tell it about the Tabs
+      liveContext += `[MAIN DASHBOARD CHARTS]\n`;
+      liveContext += `The user is currently looking at the '${activeTab}' tab.\n`;
+      liveContext += `If they ask about a chart not listed below, tell them: "Please click on the [Tab Name] tab so I can see that data!" (Available tabs: ${dynamicTabs.join(', ')}).\n\n`;
+      
+      liveContext += `Here are the latest values for the charts in the active '${activeTab}' tab:\n`;
       
       for (const chart of activeCharts) {
         try {
-          // Quickly fetch the latest number for each visible chart
+          // Quickly fetch the latest number for active charts
           const res = await fetch(`/api/latest/${chart.series_id}`);
           const valData = await res.json();
           liveContext += `- ${chart.title}: ${valData.value}\n`;
@@ -47,7 +85,6 @@ export default function ChatPanel({ activeTab = '', activeCharts = [] }: { activ
 
       const data = await response.json();
 
-      // Add AI answer to screen
       if (data.answer) {
         setMessages((prev) => [...prev, { role: 'ai', text: data.answer }]);
       } else {
@@ -62,7 +99,6 @@ export default function ChatPanel({ activeTab = '', activeCharts = [] }: { activ
 
   return (
     <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 50 }}>
-      {/* The Chat Window */}
       {isOpen && (
         <div style={{ 
           width: '350px', height: '450px', background: '#0b0f0f', 
@@ -70,13 +106,11 @@ export default function ChatPanel({ activeTab = '', activeCharts = [] }: { activ
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
           marginBottom: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
         }}>
-          {/* Header */}
           <div style={{ background: '#1b2226', padding: '15px', color: '#fff', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
             <span>Macro AI Analyst</span>
             <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}>✖</button>
           </div>
 
-          {/* Messages Area */}
           <div style={{ flex: 1, padding: '15px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {messages.map((msg, idx) => (
               <div key={idx} style={{ 
@@ -88,10 +122,9 @@ export default function ChatPanel({ activeTab = '', activeCharts = [] }: { activ
                 {msg.text}
               </div>
             ))}
-            {isLoading && <div style={{ color: '#888', fontSize: '12px', fontStyle: 'italic' }}>Analyst is typing...</div>}
+            {isLoading && <div style={{ color: '#888', fontSize: '12px', fontStyle: 'italic' }}>Analyst is reading...</div>}
           </div>
 
-          {/* Input Area */}
           <div style={{ padding: '10px', borderTop: '1px solid #1b2226', display: 'flex', gap: '8px' }}>
             <input 
               type="text" 
@@ -112,7 +145,6 @@ export default function ChatPanel({ activeTab = '', activeCharts = [] }: { activ
         </div>
       )}
 
-      {/* The Floating Button to open chat */}
       {!isOpen && (
         <button 
           onClick={() => setIsOpen(true)}

@@ -180,8 +180,14 @@ export default function MacroPage() {
         </section>
       </div>
 
-      {/* <-- NEW: Pass the active tab and charts into the AI Chat Panel --> */}
-      <ChatPanel activeTab={activeTab} activeCharts={activeCharts} />
+      {/* <-- NEW: Pass everything into the AI Chat Panel so it can see the whole screen --> */}
+      <ChatPanel 
+        activeTab={activeTab} 
+        activeCharts={activeCharts} 
+        market={market}
+        news={news}
+        dynamicTabs={dynamicTabs}
+      />
 
     </main>
   );
