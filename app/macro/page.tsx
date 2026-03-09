@@ -151,7 +151,7 @@ export default function MacroPage() {
         </div>
 
         {/* RIGHT CONTENT */}
-        <section style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
           
           {/* TAB NAVIGATION */}
           <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid #1b2226', paddingBottom: '10px', overflowX: 'auto' }}>
