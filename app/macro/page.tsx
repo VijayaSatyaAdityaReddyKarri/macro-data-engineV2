@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import ChatPanel from '@/components/ChatPanel'; 
 
 // This forces Next.js to skip Server-Side Rendering for the chart, 
 // which stops the "removeChild" DOM mismatch crash dead in its tracks!
@@ -9,7 +10,6 @@ const MacroLineChart = dynamic(() => import('@/components/MacroLineChart'), {
   ssr: false,
   loading: () => <p style={{ color: '#888', padding: '20px' }}>Loading chart data...</p>
 });
-import ChatPanel from '@/components/ChatPanel'; 
 
 export default function MacroPage() {
   const [activeTab, setActiveTab] = useState(''); 
@@ -129,7 +129,9 @@ export default function MacroPage() {
                      <div style={{ fontSize: '13px', lineHeight: '1.4', fontWeight: 500, marginBottom: '5px' }}>{item.title || 'Untitled'}</div>
                      {/* CRITICAL FIX: Safely check for item.time before converting it to a Date */}
                      <div style={{ fontSize: '10px', opacity: 0.4 }}>
-                       {item.time ? new Date(item.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Recent'}
+                       {!item.time || isNaN(Number(item.time)) 
+                         ? 'Recent' 
+                         : new Date(Number(item.time) * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                      </div>
                    </a>
                  ))
@@ -174,13 +176,13 @@ export default function MacroPage() {
             ))}
           </div>
 
-          {/* DYNAMIC CHARTS GRID */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
+          {/* DYNAMIC CHARTS VERTICAL STACK */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
             {activeCharts.map((chart) => (
-               <div key={chart.series_id} className="card" style={{ height: '350px', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
+               <div key={chart.series_id} className="card" style={{ height: '600px', width: '100%', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px' }}>
                  <div style={{ marginBottom: '10px' }}>
-                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#fff' }}>{chart.title}</h3>
-                    <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>Source: {chart.source}</p>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#fff' }}>{chart.title}</h3>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#888' }}>Source: {chart.source}</p>
                  </div>
                  <div style={{ height: 'calc(100% - 40px)' }}>
                     <MacroLineChart seriesId={chart.series_id} />
