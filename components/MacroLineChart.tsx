@@ -84,6 +84,12 @@ export default function MacroLineChart({ seriesId }: MacroLineChartProps) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    // MAGIC FIX: Tells Chart.js to leave 50px of breathing room on the right
+    layout: {
+      padding: {
+        right: 50 
+      }
+    },
     interaction: { mode: 'index' as const, intersect: false },
     plugins: {
       legend: { display: false },
@@ -113,7 +119,7 @@ export default function MacroLineChart({ seriesId }: MacroLineChartProps) {
       label: seriesId,
       data: transformedData.map(d => d.value),
       borderColor: '#fccb0b',
-      borderWidth: 2,
+      borderWidth: 3, // BUMPED THIS UP from 2 to 3 for bolder lines!
       pointRadius: 0,
       tension: 0.1,
     }]
