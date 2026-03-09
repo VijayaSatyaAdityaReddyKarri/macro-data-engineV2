@@ -176,15 +176,16 @@ export default function MacroPage() {
             ))}
           </div>
 
+
           {/* DYNAMIC CHARTS VERTICAL STACK */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
             {activeCharts.map((chart) => (
-               <div key={chart.series_id} className="card" style={{ height: '550px', width: '100%', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px 50px 20px 20px', overflow: 'hidden' }}>
+               <div key={chart.series_id} className="card" style={{ height: '550px', width: '95%', background: '#0b0f0f', border: '1px solid #1b2226', borderRadius: '16px', padding: '20px', overflow: 'hidden' }}>
                  <div style={{ marginBottom: '10px' }}>
                     <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#fff' }}>{chart.title}</h3>
                     <p style={{ margin: 0, fontSize: '12px', color: '#888' }}>Source: {chart.source}</p>
                  </div>
-                 <div style={{ height: 'calc(100% - 40px)', paddingRight: '10px' }}>
+                 <div style={{ height: 'calc(100% - 40px)' }}>
                     <MacroLineChart seriesId={chart.series_id} />
                  </div>
                </div>
